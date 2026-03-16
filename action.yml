@@ -7,10 +7,6 @@ branding:
   color: 'purple'
 
 inputs:
-  cache-size:
-    description: 'Size of the cache volume (e.g., 50G, 100G)'
-    required: false
-    default: '50G'
   buildkit-version:
     description: 'BuildKit version (e.g., v0.16.0). Empty uses latest.'
     required: false
