@@ -1,0 +1,40 @@
+name: 'MonkCI Setup Docker Builder'
+description: 'Sets up a Docker BuildKit builder with persistent cache for blazing fast builds'
+author: 'MonkCI'
+
+branding:
+  icon: 'layers'
+  color: 'purple'
+
+inputs:
+  cache-size:
+    description: 'Size of the cache volume (e.g., 50G, 100G)'
+    required: false
+    default: '50G'
+  buildkit-version:
+    description: 'BuildKit version (e.g., v0.16.0). Empty uses latest.'
+    required: false
+    default: ''
+  platforms:
+    description: 'Target platforms for build (e.g., linux/amd64,linux/arm64)'
+    required: false
+    default: ''
+  nofallback:
+    description: 'If true, fail instead of falling back to local builder'
+    required: false
+    default: 'false'
+
+outputs:
+  builder-name:
+    description: 'Name of the Docker builder instance'
+  cache-hit:
+    description: 'Whether an existing cache was found (true/false)'
+  volume-name:
+    description: 'Cache volume name'
+  mount-path:
+    description: 'Path where cache is mounted'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+  post: 'dist/post.js'
