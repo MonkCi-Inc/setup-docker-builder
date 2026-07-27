@@ -29,6 +29,11 @@ outputs:
     description: 'Cache volume name'
   mount-path:
     description: 'Path where cache is mounted'
+  cache-role:
+    description: >-
+      Controller-assigned cache role for this lease: canonical_writer or
+      disposable_clone. Empty when the cache path is disabled or the runner
+      agent predates the output.
 
 runs:
   using: 'node20'
