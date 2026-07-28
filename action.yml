@@ -34,6 +34,11 @@ outputs:
       Controller-assigned cache role for this lease: canonical_writer or
       disposable_clone. Empty when the cache path is disabled or the runner
       agent predates the output.
+  bundle-sha:
+    description: >-
+      Full git SHA of the miglet source this action's bundled binaries were
+      built from. Lets workflows pin/assert bundle provenance instead of
+      trusting a mutable tag. Empty when the bundle predates the output.
 
 runs:
   using: 'node20'

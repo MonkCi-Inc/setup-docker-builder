@@ -1,0 +1,83 @@
+# Bundle provenance guard (fault-matrix run 30303821903 BUG C): the action's
+# executables ship as committed binaries, so nothing ties them to the miglet
+# source they were built from unless CI enforces it. This job verifies every
+# bundled Go binary with the toolchain (`go version -m`), not convention:
+#   - vcs.revision matches BINARIES_VERSION (written by `make publish` in the
+#     miglet repo, which refuses a dirty tree)
+#   - vcs.modified is false (no dirty-tree builds)
+#   - GOOS/GOARCH match the filename
+#   - capability probe: the setup binary actually contains the outputs
+#     action.yml declares (a June 2026 binary silently lacked cache-role)
+name: Verify bundled binaries
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Verify binary provenance and capabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+
+          if [ ! -f BINARIES_VERSION ]; then
+            echo "::error::BINARIES_VERSION missing — republish the bundle via the miglet repo's 'make publish'"
+            exit 1
+          fi
+          expected="$(tr -d '[:space:]' < BINARIES_VERSION)"
+          if ! [[ "${expected}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::BINARIES_VERSION is not a full 40-char git SHA: '${expected}'"
+            exit 1
+          fi
+          echo "expected source SHA: ${expected}"
+
+          for bin in bin/monkci-setup-* bin/monkci-cleanup-*; do
+            meta="$(go version -m "${bin}")"
+            revision="$(grep -oP 'vcs\.revision=\K\S+' <<<"${meta}" || true)"
+            modified="$(grep -oP 'vcs\.modified=\K\S+' <<<"${meta}" || true)"
+            goos="$(grep -oP '\bGOOS=\K\S+' <<<"${meta}" || true)"
+            goarch="$(grep -oP '\bGOARCH=\K\S+' <<<"${meta}" || true)"
+
+            # Filename convention: monkci-<tool>-<os>-<arch>
+            want_os="$(basename "${bin}" | awk -F- '{print $(NF-1)}')"
+            want_arch="$(basename "${bin}" | awk -F- '{print $NF}')"
+
+            if [ "${revision}" != "${expected}" ]; then
+              echo "::error::${bin}: vcs.revision '${revision}' != BINARIES_VERSION '${expected}'"
+              fail=1
+            fi
+            if [ "${modified}" != "false" ]; then
+              echo "::error::${bin}: vcs.modified='${modified}' — refusing dirty-tree binaries"
+              fail=1
+            fi
+            if [ "${goos}" != "${want_os}" ] || [ "${goarch}" != "${want_arch}" ]; then
+              echo "::error::${bin}: built for ${goos}/${goarch}, filename says ${want_os}/${want_arch}"
+              fail=1
+            fi
+          done
+
+          # Capability probe: every output declared in action.yml must exist as
+          # a literal in the setup binary that emits it. Catches the BUG C shape
+          # (output declared in action.yml, binary predates the feature).
+          for cap in cache-role stage-timings cleanup-bin bundle-sha; do
+            if ! strings bin/monkci-setup-linux-amd64 | grep -qF -e "${cap}"; then
+              echo "::error::bin/monkci-setup-linux-amd64 lacks declared output '${cap}' — stale bundle"
+              fail=1
+            fi
+          done
+
+          exit "${fail}"
